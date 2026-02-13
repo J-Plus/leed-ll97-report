@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LEED vs NYC Energy Grades — 2026 Data Explorer</title>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@300;400;500;600&family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root {
+  --bg-deep: #060a12;
+  --bg-base: #0b1120;
+  --bg-card: #111827;
+  --bg-card-hover: #1a2340;
+  --bg-input: #0d1528;
+  --border: #1e2d4a;
+  --border-light: #253554;
+  --text-primary: #e8edf5;
+  --text-secondary: #8899b8;
+  --text-muted: #4a5f85;
+  --grade-a: #10b981;
+  --grade-a-bg: rgba(16,185,129,.12);
+  --grade-b: #06b6d4;
+  --grade-b-bg: rgba(6,182,212,.12);
+  --grade-c: #f59e0b;
+  --grade-c-bg: rgba(245,158,11,.12);
+  --grade-d: #ef4444;
+  --grade-d-bg: rgba(239,68,68,.12);
+  --leed-platinum: #c4b5fd;
+  --leed-gold: #fbbf24;
+  --leed-silver: #94a3b8;
+  --leed-certified: #6ee7b7;
+  --accent: #38bdf8;
+  --accent-dim: rgba(56,189,248,.15);
+  --font-display: 'Libre Baskerville', Georgia, serif;
+  --font-mono: 'IBM Plex Mono', 'Menlo', monospace;
+  --font-body: 'IBM Plex Sans', -apple-system, sans-serif;
+  --radius: 6px;
+  --shadow: 0 1px 3px rgba(0,0,0,.4), 0 4px 20px rgba(0,0,0,.3);
+}
+html { font-size: 15px; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  line-height: 1.5;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+/* --- GRID BACKGROUND TEXTURE --- */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(56,189,248,.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(56,189,248,.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+  pointer-events: none;
+  z-index: 0;
+}
+.app { position: relative; z-index: 1; }
+
+/* --- HEADER --- */
+.header {
+  border-bottom: 1px solid var(--border);
+  padding: 2rem 2.5rem 1.5rem;
+  background: linear-gradient(180deg, rgba(11,17,32,.95), rgba(6,10,18,.98));
+}
+.header-inner { max-width: 1440px; margin: 0 auto; }
+.header h1 {
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  font-weight: 700;
+  letter-spacing: -.01em;
+  color: var(--text-primary);
+  margin-bottom: .25rem;
+}
+.header h1 span { color: var(--accent); }
+.header .subtitle {
+  font-family: var(--font-mono);
+  font-size: .75rem;
+  color: var(--text-muted);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+/* --- FILTER BAR --- */
+.filter-bar {
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  padding: .75rem 2.5rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(12px);
+}
+.filter-bar label {
+  font-family: var(--font-mono);
+  font-size: .7rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+}
+.filter-group { display: flex; align-items: center; gap: .4rem; }
+.filter-bar select, .filter-bar input {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: .8rem;
+  padding: .35rem .6rem;
+  border-radius: var(--radius);
+  outline: none;
+  transition: border-color .2s;
+}
+.filter-bar select:focus, .filter-bar input:focus { border-color: var(--accent); }
+.filter-bar input::placeholder { color: var(--text-muted); }
+.filter-bar .search-input { width: 200px; }
+.filter-bar .reset-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: .7rem;
+  padding: .35rem .8rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  transition: all .2s;
+}
+.filter-bar .reset-btn:hover { border-color: var(--accent); color: var(--accent); }
+.active-filters {
+  font-family: var(--font-mono);
+  font-size: .7rem;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+.active-filters strong { color: var(--accent); }
+
+/* --- MAIN LAYOUT --- */
+.main { max-width: 1440px; margin: 0 auto; padding: 1.5rem 2.5rem 3rem; }
+
+/* --- STATS CARDS --- */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.2rem 1.4rem;
+  position: relative;
+  overflow: hidden;
+  transition: border-color .25s, transform .15s;
+}
+.stat-card:hover { border-color: var(--border-light); transform: translateY(-1px); }
+.stat-card::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+}
+.stat-card:nth-child(1)::after { background: var(--accent); }
+.stat-card:nth-child(2)::after { background: var(--grade-d); }
+.stat-card:nth-child(3)::after { background: var(--grade-a); }
+.stat-card:nth-child(4)::after { background: var(--leed-gold); }
+.stat-card:nth-child(5)::after { background: var(--leed-platinum); }
+.stat-label {
+  font-family: var(--font-mono);
+  font-size: .65rem;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text-muted);
+  margin-bottom: .5rem;
+}
+.stat-value {
+  font-family: var(--font-mono);
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1;
+}
+.stat-detail {
+  font-family: var(--font-mono);
+  font-size: .72rem;
+  color: var(--text-secondary);
+  margin-top: .4rem;
+}
+
+/* --- CHART GRID --- */
+.chart-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+.chart-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.2rem;
+  overflow: hidden;
+}
+.chart-panel.full-width { grid-column: 1 / -1; }
+.chart-title {
+  font-family: var(--font-display);
+  font-size: .95rem;
+  font-weight: 400;
+  color: var(--text-primary);
+  margin-bottom: .15rem;
+}
+.chart-subtitle {
+  font-family: var(--font-mono);
+  font-size: .65rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-bottom: 1rem;
+}
+.chart-container { width: 100%; }
+
+/* --- DATA TABLE --- */
+.table-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.table-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.2rem 1.4rem .8rem;
+}
+.table-header .chart-title { margin-bottom: 0; }
+.table-count {
+  font-family: var(--font-mono);
+  font-size: .72rem;
+  color: var(--text-muted);
+}
+.table-count strong { color: var(--accent); }
+.table-wrap { overflow-x: auto; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--font-mono);
+  font-size: .75rem;
+}
+thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-base);
+  color: var(--text-muted);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  font-size: .65rem;
+  padding: .6rem .8rem;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition: color .2s;
+}
+thead th:hover { color: var(--accent); }
+thead th.sorted { color: var(--accent); }
+thead th .sort-arrow { margin-left: .3rem; opacity: .5; }
+thead th.sorted .sort-arrow { opacity: 1; }
+tbody tr {
+  border-bottom: 1px solid rgba(30,45,74,.4);
+  transition: background .15s;
+}
+tbody tr:hover { background: var(--bg-card-hover); }
+tbody td {
+  padding: .55rem .8rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  max-width: 250px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+tbody td:first-child { color: var(--text-primary); max-width: 280px; }
+
+/* Grade badge */
+.grade-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: .75rem;
+  letter-spacing: 0;
+}
+.grade-A { background: var(--grade-a-bg); color: var(--grade-a); }
+.grade-B { background: var(--grade-b-bg); color: var(--grade-b); }
+.grade-C { background: var(--grade-c-bg); color: var(--grade-c); }
+.grade-D { background: var(--grade-d-bg); color: var(--grade-d); }
+
+/* LEED level pill */
+.leed-pill {
+  display: inline-block;
+  padding: .15rem .5rem;
+  border-radius: 3px;
+  font-size: .68rem;
+  font-weight: 500;
+  letter-spacing: .03em;
+}
+.leed-Platinum { background: rgba(196,181,253,.12); color: var(--leed-platinum); }
+.leed-Gold { background: rgba(251,191,36,.12); color: var(--leed-gold); }
+.leed-Silver { background: rgba(148,163,184,.12); color: var(--leed-silver); }
+.leed-Certified { background: rgba(110,231,183,.1); color: var(--leed-certified); }
+
+/* Pagination */
+.table-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: .8rem 1.4rem;
+  border-top: 1px solid var(--border);
+}
+.page-info {
+  font-family: var(--font-mono);
+  font-size: .7rem;
+  color: var(--text-muted);
+}
+.page-buttons { display: flex; gap: .4rem; }
+.page-btn {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: .72rem;
+  padding: .3rem .7rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all .15s;
+}
+.page-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.page-btn:disabled { opacity: .3; cursor: default; }
+
+/* --- LOADING --- */
+.loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-deep);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  transition: opacity .4s;
+}
+.loading-overlay.hidden { opacity: 0; pointer-events: none; }
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text {
+  font-family: var(--font-mono);
+  font-size: .75rem;
+  color: var(--text-muted);
+  margin-top: 1rem;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+/* --- ANIMATIONS --- */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-in {
+  animation: fadeUp .5s ease both;
+}
+.delay-1 { animation-delay: .05s; }
+.delay-2 { animation-delay: .1s; }
+.delay-3 { animation-delay: .15s; }
+.delay-4 { animation-delay: .2s; }
+.delay-5 { animation-delay: .25s; }
+.delay-6 { animation-delay: .3s; }
+.delay-7 { animation-delay: .35s; }
+
+/* --- RESPONSIVE --- */
+@media (max-width: 1100px) {
+  .stats-row { grid-template-columns: repeat(3, 1fr); }
+  .chart-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 700px) {
+  .stats-row { grid-template-columns: 1fr 1fr; }
+  .header { padding: 1.5rem 1.2rem 1rem; }
+  .main { padding: 1rem 1.2rem 2rem; }
+  .filter-bar { padding: .75rem 1.2rem; }
+}
+</style>
+</head>
+<body>
+<div class="loading-overlay" id="loading">
+  <div class="loading-spinner"></div>
+  <div class="loading-text">Loading 902 buildings&hellip;</div>
+</div>
+
+<div class="app">
+  <header class="header">
+    <div class="header-inner">
+      <h1>LEED <span>vs</span> NYC Energy Grades</h1>
+      <div class="subtitle">2026 Annual Data Explorer &mdash; 902 Certified Buildings</div>
+    </div>
+  </header>
+
+  <div class="filter-bar" id="filterBar">
+    <div class="filter-group">
+      <label>Grade</label>
+      <select id="filterGrade"><option value="">All</option><option>A</option><option>B</option><option>C</option><option>D</option></select>
+    </div>
+    <div class="filter-group">
+      <label>LEED</label>
+      <select id="filterLeed"><option value="">All</option><option>Platinum</option><option>Gold</option><option>Silver</option><option>Certified</option></select>
+    </div>
+    <div class="filter-group">
+      <label>Type</label>
+      <select id="filterType"><option value="">All</option></select>
+    </div>
+    <div class="filter-group">
+      <label>Borough</label>
+      <select id="filterBorough"><option value="">All</option></select>
+    </div>
+    <div class="filter-group">
+      <label>Search</label>
+      <input type="text" id="filterSearch" class="search-input" placeholder="Building name or address&hellip;">
+    </div>
+    <button class="reset-btn" id="resetFilters">Reset</button>
+    <div class="active-filters" id="activeFilters">Showing <strong>902</strong> of 902</div>
+  </div>
+
+  <main class="main">
+    <!-- Stats Row -->
+    <div class="stats-row" id="statsRow">
+      <div class="stat-card animate-in delay-1">
+        <div class="stat-label">Buildings Matched</div>
+        <div class="stat-value" id="statTotal">—</div>
+        <div class="stat-detail" id="statTotalDetail"></div>
+      </div>
+      <div class="stat-card animate-in delay-2">
+        <div class="stat-label">Grade C or D</div>
+        <div class="stat-value" id="statCD">—</div>
+        <div class="stat-detail" id="statCDDetail"></div>
+      </div>
+      <div class="stat-card animate-in delay-3">
+        <div class="stat-label">Avg ENERGY STAR</div>
+        <div class="stat-value" id="statES">—</div>
+        <div class="stat-detail" id="statESDetail"></div>
+      </div>
+      <div class="stat-card animate-in delay-4">
+        <div class="stat-label">Avg Site EUI</div>
+        <div class="stat-value" id="statEUI">—</div>
+        <div class="stat-detail" id="statEUIDetail"></div>
+      </div>
+      <div class="stat-card animate-in delay-5">
+        <div class="stat-label">Whole-Building Certs</div>
+        <div class="stat-value" id="statWhole">—</div>
+        <div class="stat-detail" id="statWholeDetail"></div>
+      </div>
+    </div>
+
+    <!-- Charts Row 1 -->
+    <div class="chart-grid">
+      <div class="chart-panel animate-in delay-3">
+        <div class="chart-title">Energy Grade Distribution</div>
+        <div class="chart-subtitle">NYC Letter Grades for LEED Buildings</div>
+        <div class="chart-container" id="chartGradeDist"></div>
+      </div>
+      <div class="chart-panel animate-in delay-4">
+        <div class="chart-title">LEED Level vs Energy Grade</div>
+        <div class="chart-subtitle">Cross-Tabulation Heatmap</div>
+        <div class="chart-container" id="chartHeatmap"></div>
+      </div>
+    </div>
+
+    <!-- Charts Row 2 -->
+    <div class="chart-grid">
+      <div class="chart-panel animate-in delay-5">
+        <div class="chart-title">ENERGY STAR Score vs Site EUI</div>
+        <div class="chart-subtitle">Colored by LEED Certification Level</div>
+        <div class="chart-container" id="chartScatter"></div>
+      </div>
+      <div class="chart-panel animate-in delay-6">
+        <div class="chart-title">Certification Year by Grade</div>
+        <div class="chart-subtitle">When Were These Buildings Certified?</div>
+        <div class="chart-container" id="chartYearHist"></div>
+      </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="table-panel animate-in delay-7" id="tablePanel">
+      <div class="table-header">
+        <div>
+          <div class="chart-title">All Buildings</div>
+          <div class="chart-subtitle" style="margin-bottom:0">Click column headers to sort</div>
+        </div>
+        <div class="table-count" id="tableCount"></div>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead id="tableHead"></thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+      <div class="table-footer">
+        <div class="page-info" id="pageInfo"></div>
+        <div class="page-buttons">
+          <button class="page-btn" id="prevPage">&larr; Prev</button>
+          <button class="page-btn" id="nextPage">Next &rarr;</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+// ============================================================
+// DATA & STATE
+// ============================================================
+let RAW_DATA = [];
+let FILTERED = [];
+let SORT_COL = 'energy_star_score';
+let SORT_DIR = 'desc';
+let PAGE = 0;
+const PAGE_SIZE = 50;
+
+const GRADE_COLORS = { A: '#10b981', B: '#06b6d4', C: '#f59e0b', D: '#ef4444' };
+const GRADE_BG = { A: 'rgba(16,185,129,.15)', B: 'rgba(6,182,212,.15)', C: 'rgba(245,158,11,.15)', D: 'rgba(239,68,68,.15)' };
+const LEED_COLORS = { Platinum: '#c4b5fd', Gold: '#fbbf24', Silver: '#94a3b8', Certified: '#6ee7b7' };
+const GRADES_ORDER = ['A','B','C','D'];
+const LEED_ORDER = ['Platinum','Gold','Silver','Certified'];
+const WHOLE_BUILDING_TYPES = new Set([
+  'New Construction', 'Existing Buildings', 'Core and Shell',
+  'Schools - New Construction', 'Schools', 'Healthcare',
+  'Homes', 'Multifamily Midrise', 'Data Centers - New Construction',
+  'Warehouse and Distribution Centers - New Construction'
+]);
+
+const PLOTLY_LAYOUT_BASE = {
+  paper_bgcolor: 'rgba(0,0,0,0)',
+  plot_bgcolor: 'rgba(0,0,0,0)',
+  font: { family: 'IBM Plex Mono, monospace', color: '#8899b8', size: 11 },
+  margin: { l: 50, r: 20, t: 10, b: 45 },
+  xaxis: { gridcolor: 'rgba(30,45,74,.5)', zerolinecolor: 'rgba(30,45,74,.5)' },
+  yaxis: { gridcolor: 'rgba(30,45,74,.5)', zerolinecolor: 'rgba(30,45,74,.5)' },
+};
+const PLOTLY_CONFIG = { displayModeBar: false, responsive: true };
+
+// ============================================================
+// LOAD DATA
+// ============================================================
+async function loadData() {
+  const csvPath = 'data.csv';
+  const response = await fetch(csvPath);
+  const text = await response.text();
+  const parsed = Papa.parse(text, { header: true, skipEmptyLines: true, dynamicTyping: true });
+  RAW_DATA = parsed.data.map(row => ({
+    ...row,
+    energy_star_score: parseFloat(row.energy_star_score) || null,
+    site_eui: parseFloat(row.site_eui) || null,
+    leed_cert_year: parseInt(row.leed_cert_year) || null,
+    match_confidence: parseInt(row.match_confidence) || null,
+    ghg_emissions_tco2e: parseFloat(row.ghg_emissions_tco2e) || null,
+    gross_sqft: parseFloat(row.gross_sqft) || null,
+    lat: parseFloat(row.lat) || null,
+    lon: parseFloat(row.lon) || null,
+    _is_whole_building: WHOLE_BUILDING_TYPES.has(row.project_type),
+  }));
+
+  // Populate filter dropdowns
+  populateDropdown('filterType', [...new Set(RAW_DATA.map(r => r.project_type).filter(Boolean))].sort());
+  populateDropdown('filterBorough', [...new Set(RAW_DATA.map(r => r.borough).filter(Boolean))].sort());
+
+  FILTERED = [...RAW_DATA];
+  render();
+  document.getElementById('loading').classList.add('hidden');
+}
+
+function populateDropdown(id, values) {
+  const el = document.getElementById(id);
+  values.forEach(v => {
+    const opt = document.createElement('option');
+    opt.value = v; opt.textContent = v;
+    el.appendChild(opt);
+  });
+}
+
+// ============================================================
+// FILTERING
+// ============================================================
+function applyFilters() {
+  const grade = document.getElementById('filterGrade').value;
+  const leed = document.getElementById('filterLeed').value;
+  const type = document.getElementById('filterType').value;
+  const borough = document.getElementById('filterBorough').value;
+  const search = document.getElementById('filterSearch').value.toLowerCase().trim();
+
+  FILTERED = RAW_DATA.filter(r => {
+    if (grade && r.energy_grade !== grade) return false;
+    if (leed && r.leed_level !== leed) return false;
+    if (type && r.project_type !== type) return false;
+    if (borough && r.borough !== borough) return false;
+    if (search) {
+      const name = (r.building_name_raw || '').toLowerCase();
+      const addr = (r.address_raw || '').toLowerCase();
+      if (!name.includes(search) && !addr.includes(search)) return false;
+    }
+    return true;
+  });
+
+  PAGE = 0;
+  render();
+}
+
+document.querySelectorAll('#filterBar select, #filterBar input').forEach(el => {
+  el.addEventListener(el.tagName === 'INPUT' ? 'input' : 'change', applyFilters);
+});
+document.getElementById('resetFilters').addEventListener('click', () => {
+  document.querySelectorAll('#filterBar select').forEach(s => s.value = '');
+  document.getElementById('filterSearch').value = '';
+  applyFilters();
+});
+
+// ============================================================
+// RENDER ALL
+// ============================================================
+function render() {
+  updateStats();
+  renderGradeDistChart();
+  renderHeatmap();
+  renderScatter();
+  renderYearHist();
+  renderTable();
+
+  const total = RAW_DATA.length;
+  const shown = FILTERED.length;
+  document.getElementById('activeFilters').innerHTML =
+    `Showing <strong>${shown}</strong> of ${total}`;
+}
+
+// ============================================================
+// STATS CARDS
+// ============================================================
+function updateStats() {
+  const d = FILTERED;
+  const n = d.length;
+
+  document.getElementById('statTotal').textContent = n.toLocaleString();
+  document.getElementById('statTotalDetail').textContent = `of ${RAW_DATA.length} total`;
+
+  const cd = d.filter(r => r.energy_grade === 'C' || r.energy_grade === 'D').length;
+  const cdPct = n ? ((cd / n) * 100).toFixed(1) : 0;
+  document.getElementById('statCD').textContent = `${cdPct}%`;
+  document.getElementById('statCDDetail').textContent = `${cd} buildings`;
+
+  const esScores = d.map(r => r.energy_star_score).filter(v => v != null && !isNaN(v));
+  const avgES = esScores.length ? (esScores.reduce((a,b)=>a+b,0) / esScores.length).toFixed(0) : '—';
+  document.getElementById('statES').textContent = avgES;
+  document.getElementById('statESDetail').textContent = `median ${esScores.length ? median(esScores).toFixed(0) : '—'}`;
+
+  const euis = d.map(r => r.site_eui).filter(v => v != null && !isNaN(v));
+  const avgEUI = euis.length ? (euis.reduce((a,b)=>a+b,0) / euis.length).toFixed(1) : '—';
+  document.getElementById('statEUI').textContent = avgEUI;
+  document.getElementById('statEUIDetail').textContent = `kBtu/sqft`;
+
+  const whole = d.filter(r => r._is_whole_building).length;
+  const wholePct = n ? ((whole / n) * 100).toFixed(0) : 0;
+  document.getElementById('statWhole').textContent = `${wholePct}%`;
+  document.getElementById('statWholeDetail').textContent = `${whole} of ${n}`;
+}
+
+function median(arr) {
+  const s = [...arr].sort((a,b) => a-b);
+  const mid = Math.floor(s.length / 2);
+  return s.length % 2 ? s[mid] : (s[mid-1] + s[mid]) / 2;
+}
+
+// ============================================================
+// CHART: Grade Distribution (bar)
+// ============================================================
+function renderGradeDistChart() {
+  const counts = {};
+  GRADES_ORDER.forEach(g => counts[g] = 0);
+  FILTERED.forEach(r => { if (r.energy_grade in counts) counts[r.energy_grade]++; });
+
+  const trace = {
+    x: GRADES_ORDER,
+    y: GRADES_ORDER.map(g => counts[g]),
+    type: 'bar',
+    marker: {
+      color: GRADES_ORDER.map(g => GRADE_COLORS[g]),
+      line: { width: 0 },
+    },
+    text: GRADES_ORDER.map(g => counts[g]),
+    textposition: 'outside',
+    textfont: { family: 'IBM Plex Mono', size: 13, color: '#e8edf5' },
+    hovertemplate: 'Grade %{x}<br>%{y} buildings<br>%{customdata}%<extra></extra>',
+    customdata: GRADES_ORDER.map(g => FILTERED.length ? ((counts[g]/FILTERED.length)*100).toFixed(1) : '0'),
+  };
+
+  const layout = {
+    ...PLOTLY_LAYOUT_BASE,
+    height: 300,
+    xaxis: { ...PLOTLY_LAYOUT_BASE.xaxis, title: { text: 'NYC Energy Grade', font: { size: 10 } } },
+    yaxis: { ...PLOTLY_LAYOUT_BASE.yaxis, title: { text: 'Buildings', font: { size: 10 } } },
+    bargap: 0.35,
+  };
+
+  Plotly.react('chartGradeDist', [trace], layout, PLOTLY_CONFIG);
+}
+
+// ============================================================
+// CHART: Heatmap LEED Level x Grade
+// ============================================================
+function renderHeatmap() {
+  const matrix = LEED_ORDER.map(leed =>
+    GRADES_ORDER.map(grade =>
+      FILTERED.filter(r => r.leed_level === leed && r.energy_grade === grade).length
+    )
+  );
+
+  const annotations = [];
+  LEED_ORDER.forEach((leed, i) => {
+    GRADES_ORDER.forEach((grade, j) => {
+      annotations.push({
+        x: grade, y: leed,
+        text: String(matrix[i][j]),
+        font: { family: 'IBM Plex Mono', size: 13, color: matrix[i][j] > 80 ? '#0b1120' : '#e8edf5' },
+        showarrow: false,
+      });
+    });
+  });
+
+  const trace = {
+    z: matrix,
+    x: GRADES_ORDER,
+    y: LEED_ORDER,
+    type: 'heatmap',
+    colorscale: [
+      [0, '#0b1120'],
+      [0.2, '#1a2340'],
+      [0.4, '#1e3a5f'],
+      [0.6, '#1d6b8a'],
+      [0.8, '#17a2b8'],
+      [1, '#38bdf8'],
+    ],
+    showscale: false,
+    hovertemplate: '%{y} + Grade %{x}<br>%{z} buildings<extra></extra>',
+  };
+
+  const layout = {
+    ...PLOTLY_LAYOUT_BASE,
+    height: 300,
+    annotations,
+    xaxis: { ...PLOTLY_LAYOUT_BASE.xaxis, side: 'bottom' },
+    yaxis: { ...PLOTLY_LAYOUT_BASE.yaxis, autorange: 'reversed' },
+  };
+
+  Plotly.react('chartHeatmap', [trace], layout, PLOTLY_CONFIG);
+}
+
+// ============================================================
+// CHART: Scatter ENERGY STAR vs Site EUI
+// ============================================================
+function renderScatter() {
+  const traces = LEED_ORDER.map(level => {
+    const pts = FILTERED.filter(r =>
+      r.leed_level === level && r.energy_star_score != null && r.site_eui != null
+    );
+    return {
+      x: pts.map(r => r.energy_star_score),
+      y: pts.map(r => r.site_eui),
+      text: pts.map(r => r.building_name_raw),
+      mode: 'markers',
+      type: 'scatter',
+      name: level,
+      marker: {
+        color: LEED_COLORS[level],
+        size: 6,
+        opacity: 0.7,
+        line: { width: 0 },
+      },
+      hovertemplate: '<b>%{text}</b><br>ENERGY STAR: %{x}<br>Site EUI: %{y} kBtu/sqft<extra>' + level + '</extra>',
+    };
+  });
+
+  const layout = {
+    ...PLOTLY_LAYOUT_BASE,
+    height: 340,
+    xaxis: { ...PLOTLY_LAYOUT_BASE.xaxis, title: { text: 'ENERGY STAR Score', font: { size: 10 } }, range: [0, 105] },
+    yaxis: { ...PLOTLY_LAYOUT_BASE.yaxis, title: { text: 'Site EUI (kBtu/sqft)', font: { size: 10 } } },
+    legend: {
+      orientation: 'h', y: 1.12, x: 0,
+      font: { size: 10, color: '#8899b8' },
+      bgcolor: 'rgba(0,0,0,0)',
+    },
+    showlegend: true,
+  };
+
+  Plotly.react('chartScatter', traces, layout, PLOTLY_CONFIG);
+}
+
+// ============================================================
+// CHART: Year Histogram by Grade
+// ============================================================
+function renderYearHist() {
+  const traces = GRADES_ORDER.map(grade => {
+    const years = FILTERED
+      .filter(r => r.energy_grade === grade && r.leed_cert_year)
+      .map(r => r.leed_cert_year);
+    return {
+      x: years,
+      name: `Grade ${grade}`,
+      type: 'histogram',
+      marker: { color: GRADE_COLORS[grade], line: { width: 0 } },
+      opacity: 0.8,
+      xbins: { size: 1 },
+      hovertemplate: 'Grade ' + grade + '<br>Year %{x}<br>%{y} buildings<extra></extra>',
+    };
+  });
+
+  const layout = {
+    ...PLOTLY_LAYOUT_BASE,
+    height: 340,
+    barmode: 'stack',
+    xaxis: { ...PLOTLY_LAYOUT_BASE.xaxis, title: { text: 'LEED Certification Year', font: { size: 10 } }, dtick: 2 },
+    yaxis: { ...PLOTLY_LAYOUT_BASE.yaxis, title: { text: 'Buildings', font: { size: 10 } } },
+    legend: {
+      orientation: 'h', y: 1.12, x: 0,
+      font: { size: 10, color: '#8899b8' },
+      bgcolor: 'rgba(0,0,0,0)',
+    },
+    showlegend: true,
+  };
+
+  Plotly.react('chartYearHist', traces, layout, PLOTLY_CONFIG);
+}
+
+// ============================================================
+// DATA TABLE
+// ============================================================
+const TABLE_COLS = [
+  { key: 'building_name_raw', label: 'Building', width: '250px' },
+  { key: 'address_raw', label: 'Address', width: '180px' },
+  { key: 'borough', label: 'Borough', width: '100px' },
+  { key: 'energy_grade', label: 'Grade', width: '60px' },
+  { key: 'leed_level', label: 'LEED', width: '90px' },
+  { key: 'energy_star_score', label: 'ES Score', width: '80px', numeric: true },
+  { key: 'site_eui', label: 'Site EUI', width: '80px', numeric: true },
+  { key: 'project_type', label: 'Project Type', width: '160px' },
+  { key: 'leed_cert_year', label: 'Year', width: '60px', numeric: true },
+  { key: 'match_confidence', label: 'Conf.', width: '60px', numeric: true },
+];
+
+function renderTable() {
+  // Sort
+  const sorted = [...FILTERED].sort((a, b) => {
+    let va = a[SORT_COL], vb = b[SORT_COL];
+    if (va == null && vb == null) return 0;
+    if (va == null) return 1;
+    if (vb == null) return -1;
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    if (va < vb) return SORT_DIR === 'asc' ? -1 : 1;
+    if (va > vb) return SORT_DIR === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  const total = sorted.length;
+  const start = PAGE * PAGE_SIZE;
+  const end = Math.min(start + PAGE_SIZE, total);
+  const pageData = sorted.slice(start, end);
+
+  // Header
+  document.getElementById('tableHead').innerHTML = '<tr>' + TABLE_COLS.map(col => {
+    const isSorted = SORT_COL === col.key;
+    const arrow = isSorted ? (SORT_DIR === 'asc' ? '&#9650;' : '&#9660;') : '&#8597;';
+    return `<th class="${isSorted ? 'sorted' : ''}" data-col="${col.key}" style="width:${col.width}">
+      ${col.label}<span class="sort-arrow">${arrow}</span>
+    </th>`;
+  }).join('') + '</tr>';
+
+  // Body
+  document.getElementById('tableBody').innerHTML = pageData.map(row => {
+    return '<tr>' + TABLE_COLS.map(col => {
+      const val = row[col.key];
+      if (col.key === 'energy_grade' && val) {
+        return `<td><span class="grade-badge grade-${val}">${val}</span></td>`;
+      }
+      if (col.key === 'leed_level' && val) {
+        return `<td><span class="leed-pill leed-${val}">${val}</span></td>`;
+      }
+      if (col.key === 'energy_star_score' && val != null) {
+        const grade = row.energy_grade || '';
+        return `<td>${val} <span style="color:${GRADE_COLORS[grade] || '#4a5f85'};font-size:.65rem">${grade}</span></td>`;
+      }
+      if (col.key === 'site_eui' && val != null) {
+        return `<td>${val.toFixed(1)}</td>`;
+      }
+      return `<td>${val != null ? val : '—'}</td>`;
+    }).join('') + '</tr>';
+  }).join('');
+
+  // Count & pagination
+  document.getElementById('tableCount').innerHTML = `<strong>${total}</strong> buildings`;
+  const totalPages = Math.ceil(total / PAGE_SIZE) || 1;
+  document.getElementById('pageInfo').textContent = `Page ${PAGE + 1} of ${totalPages}`;
+  document.getElementById('prevPage').disabled = PAGE === 0;
+  document.getElementById('nextPage').disabled = end >= total;
+
+  // Sort click handlers
+  document.querySelectorAll('#tableHead th').forEach(th => {
+    th.onclick = () => {
+      const col = th.dataset.col;
+      if (SORT_COL === col) { SORT_DIR = SORT_DIR === 'asc' ? 'desc' : 'asc'; }
+      else { SORT_COL = col; SORT_DIR = 'desc'; }
+      renderTable();
+    };
+  });
+}
+
+document.getElementById('prevPage').addEventListener('click', () => { if (PAGE > 0) { PAGE--; renderTable(); } });
+document.getElementById('nextPage').addEventListener('click', () => {
+  if ((PAGE + 1) * PAGE_SIZE < FILTERED.length) { PAGE++; renderTable(); }
+});
+
+// ============================================================
+// INIT
+// ============================================================
+loadData().catch(err => {
+  console.error('Failed to load data:', err);
+  document.getElementById('loading').innerHTML =
+    `<div style="color:#ef4444;font-family:var(--font-mono);font-size:.85rem;text-align:center;padding:2rem">
+      Failed to load data.<br>Make sure to serve from the repo root:<br>
+      <code style="color:#38bdf8">python -m http.server 8080</code>
+    </div>`;
+});
+</script>
+</body>
+</html>
