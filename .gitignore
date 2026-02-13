@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Data (raw and interim are large / regenerable)
+data/raw/
+data/interim/
+data/cleaned/
+data/matched/
+# Keep outputs structure but ignore generated files
+data/outputs/**/*.csv
+data/outputs/**/*.png
+data/outputs/**/*.md
+data/outputs/**/*.txt
+
+# Environment
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
