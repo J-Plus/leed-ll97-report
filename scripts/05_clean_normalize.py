@@ -65,13 +65,23 @@ def clean_nyc_energy_grades(config) -> pd.DataFrame:
 
     df = load_csv(path)
 
-    # Map common NYC Open Data column names to our schema
+    # Map actual LL33 dataset columns to our schema
+    # Actual columns: Block, Lot, Building_Class, Tax_Class, Building_Count,
+    #   DOF_Gross_Square_Footage, Address, BoroughName, BBL, ENERGY STAR Score, LetterScore
     col_map = {
-        # Common LL33/LL84 column names (case-insensitive matching done below)
+        "BBL": "bbl",
+        "Address": "address_raw",
+        "BoroughName": "borough",
+        "ENERGY STAR Score": "energy_star_score",
+        "LetterScore": "energy_grade",
+        "DOF_Gross_Square_Footage": "gross_sqft",
+        "Building_Class": "building_class",
+    }
+    # Also handle LL84-style column names in case the dataset format changes
+    col_map_alt = {
         "Property Id": "property_id",
         "Property Name": "building_name_raw",
         "Address 1": "address_raw",
-        "Largest Property Use Type": "property_type",
         "Borough": "borough",
         "Postcode": "zip",
         "NYC Borough, Block and Lot (BBL)": "bbl",
@@ -79,13 +89,14 @@ def clean_nyc_energy_grades(config) -> pd.DataFrame:
         "Energy Star Score": "energy_star_score",
         "Letter Grade": "energy_grade",
         "Site EUI (kBtu/ft²)": "site_eui",
-        "Year Ending": "year",
     }
-    # Try case-insensitive column matching
+    # Try exact match first, then case-insensitive
     existing_cols = {c.lower(): c for c in df.columns}
     rename_map = {}
-    for src, dest in col_map.items():
-        if src.lower() in existing_cols:
+    for src, dest in {**col_map_alt, **col_map}.items():
+        if src in df.columns:
+            rename_map[src] = dest
+        elif src.lower() in existing_cols:
             rename_map[existing_cols[src.lower()]] = dest
     df = df.rename(columns=rename_map)
 
@@ -134,20 +145,25 @@ def clean_nyc_benchmarking(config) -> pd.DataFrame:
 
     df = load_csv(path)
 
-    # Similar column mapping as energy grades
+    # Actual LL84 benchmarking columns (265 cols). Key ones:
+    #   Property Name, Address 1, Borough, Postal Code,
+    #   NYC Borough, Block and Lot (BBL), NYC Building Identification Number (BIN),
+    #   ENERGY STAR Score, Site EUI (kBtu/ft²),
+    #   Total (Location-Based) GHG Emissions (Metric Tons CO2e)
     col_map = {
-        "Property Id": "property_id",
         "Property Name": "building_name_raw",
         "Address 1": "address_raw",
         "Borough": "borough",
+        "Postal Code": "zip",
         "Postcode": "zip",
         "NYC Borough, Block and Lot (BBL)": "bbl",
         "NYC Building Identification Number (BIN)": "bin",
         "Site EUI (kBtu/ft²)": "site_eui",
         "Weather Normalized Site EUI (kBtu/ft²)": "weather_norm_site_eui",
-        "Total GHG Emissions (Metric Tons CO2e)": "ghg_emissions_tco2e",
-        "Energy Star Score": "energy_star_score",
+        "Total (Location-Based) GHG Emissions (Metric Tons CO2e)": "ghg_emissions_tco2e",
+        "ENERGY STAR Score": "energy_star_score",
         "Year Ending": "year",
+        "Largest Property Use Type": "property_type",
     }
     existing_cols = {c.lower(): c for c in df.columns}
     rename_map = {}
@@ -194,17 +210,22 @@ def clean_nyc_ll97(config) -> pd.DataFrame:
 
     df = load_csv(path)
 
-    # LL97 datasets vary in structure; map common column patterns
+    # LL97 actual columns: Block, Lot, TaxClass, BldgClass, GBA,
+    #   Building_Count, Address, BBL, Borough
+    # Note: this dataset is a covered buildings list (no emissions values);
+    # emissions data comes from the benchmarking dataset
     col_map = {
         "BBL": "bbl",
-        "BIN": "bin",
-        "Property Name": "building_name_raw",
         "Address": "address_raw",
         "Borough": "borough",
+        "GBA": "gross_building_area",
+        "BldgClass": "building_class",
+        "TaxClass": "tax_class",
+        # Also handle alternative column names from other LL97 dataset formats
+        "BIN": "bin",
         "Postcode": "zip",
         "Actual Emissions (tCO2e)": "ghg_emissions_tco2e",
         "Emissions Limit (tCO2e)": "ll97_limit_tco2e",
-        "Emissions Intensity Limit (tCO2e/sf)": "ll97_intensity_limit",
     }
     existing_cols = {c.lower(): c for c in df.columns}
     rename_map = {}

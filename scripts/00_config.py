@@ -53,12 +53,12 @@ NYC_LL97_URL = (
 NYC_OPEN_DATA_APP_TOKEN = os.getenv("NYC_OPEN_DATA_APP_TOKEN", "")
 
 # ── LEED ───────────────────────────────────────────────────────────────────
-# USGBC LEED Project Directory API (public search endpoint)
-LEED_API_BASE = "https://leed.usgbc.org/api/leed"
-LEED_SEARCH_PARAMS = {
-    "State": "NY",
-    "City": "New York",
-}
+# USGBC Project Directory – public Elasticsearch backend
+LEED_ES_URL = (
+    "https://pr-msearch.usgbc.org/"
+    "elasticsearch_index_live_usgbc_projects_dev/_search"
+)
+LEED_ES_PAGE_SIZE = 2000  # max results per request (ES default limit ~10k)
 
 # ── Matching parameters ────────────────────────────────────────────────────
 FUZZY_ADDRESS_THRESHOLD = 80   # rapidfuzz score for address matching

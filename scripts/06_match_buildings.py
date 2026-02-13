@@ -55,6 +55,9 @@ def main(use_manual_mapping: bool = False, min_confidence: int = 50):
 
     # If we have benchmarking data and grades data, merge extra columns
     if not grades_df.empty and not bench_df.empty and "bbl_norm" in bench_df.columns and "bbl_norm" in grades_df.columns:
+        # Ensure consistent types for merge key
+        nyc_df["bbl_norm"] = nyc_df["bbl_norm"].astype(str)
+        bench_df["bbl_norm"] = bench_df["bbl_norm"].astype(str)
         # Add benchmarking columns not in grades
         extra_cols = [c for c in bench_df.columns if c not in grades_df.columns and c != "bbl_norm"]
         if extra_cols:
