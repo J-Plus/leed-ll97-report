@@ -554,16 +554,12 @@ body {
 
 <header class="header">
   <div class="header-inner">
-    <h1>LEED <span>vs</span> NYC Energy Grades</h1>
-    <div class="subtitle">902 Certified Buildings &mdash; Manhattan Isometric View</div>
+    <h1>LEED Buildings <span>Failing</span> NYC Energy Grades</h1>
+    <div class="subtitle">273 LEED Buildings with Failing Energy Grades &mdash; Manhattan</div>
   </div>
 </header>
 
 <div class="filter-bar">
-  <div class="filter-group">
-    <label>Grade</label>
-    <select id="filterGrade"><option value="">All</option><option>A</option><option>B</option><option>C</option><option>D</option></select>
-  </div>
   <div class="filter-group">
     <label>LEED</label>
     <select id="filterLeed"><option value="">All</option><option>Platinum</option><option>Gold</option><option>Silver</option><option>Certified</option></select>
@@ -587,11 +583,11 @@ body {
   <div class="map-container" id="mapContainer">
     <canvas id="mapCanvas" class="map-canvas"></canvas>
     <div class="map-legend">
-      <h3>NYC Energy Grade</h3>
-      <div class="legend-row"><div class="legend-swatch" style="background:#10b981"></div> A &mdash; Excellent</div>
-      <div class="legend-row"><div class="legend-swatch" style="background:#06b6d4"></div> B &mdash; Good</div>
-      <div class="legend-row"><div class="legend-swatch" style="background:#f59e0b"></div> C &mdash; Fair</div>
-      <div class="legend-row"><div class="legend-swatch" style="background:#ef4444"></div> D &mdash; Poor</div>
+      <h3>ENERGY STAR Score (all Grade D)</h3>
+      <div class="legend-row"><div class="legend-swatch" style="background:#ef4444"></div> 1&ndash;15 &mdash; Critical</div>
+      <div class="legend-row"><div class="legend-swatch" style="background:#f59e0b"></div> 16&ndash;35 &mdash; Poor</div>
+      <div class="legend-row"><div class="legend-swatch" style="background:#fbbf24"></div> 36&ndash;54 &mdash; Below Avg</div>
+      <div class="legend-row" style="margin-top:.4rem;font-size:.6rem;color:var(--text-muted)">Taller = lower score</div>
     </div>
     <div class="zoom-controls">
       <button class="zoom-btn" id="zoomIn">+</button>
@@ -610,8 +606,11 @@ body {
     </div>
 
     <div class="stats-section">
-      <h3>Grade Distribution</h3>
-      <div class="grade-bars" id="gradeBars"></div>
+      <h3>All Grade D &mdash; ENERGY STAR Below 55</h3>
+      <div class="stat-row"><span class="label">Buildings Shown</span><span class="value" id="metricTotal">—</span></div>
+      <div class="stat-row"><span class="label">Avg ENERGY STAR</span><span class="value" id="metricES">—</span></div>
+      <div class="stat-row"><span class="label">Median ENERGY STAR</span><span class="value" id="metricESMed">—</span></div>
+      <div class="stat-row"><span class="label">Avg Site EUI</span><span class="value" id="metricEUI">—</span></div>
     </div>
 
     <div class="stats-section">
@@ -620,12 +619,12 @@ body {
     </div>
 
     <div class="stats-section">
-      <h3>Key Metrics</h3>
-      <div class="stat-row"><span class="label">Avg ENERGY STAR</span><span class="value" id="metricES">—</span></div>
-      <div class="stat-row"><span class="label">Median ENERGY STAR</span><span class="value" id="metricESMed">—</span></div>
-      <div class="stat-row"><span class="label">Avg Site EUI</span><span class="value" id="metricEUI">—</span></div>
-      <div class="stat-row"><span class="label">Whole-Building %</span><span class="value" id="metricWhole">—</span></div>
-      <div class="stat-row"><span class="label">Grade C or D %</span><span class="value" id="metricCD">—</span></div>
+      <h3>Certification Scope</h3>
+      <div class="grade-bars" id="scopeBars"></div>
+      <div style="margin-top:.5rem">
+        <div class="stat-row"><span class="label">Whole-Building</span><span class="value" id="metricWhole">—</span></div>
+        <div class="stat-row"><span class="label">Tenant / Interiors</span><span class="value" id="metricInteriors">—</span></div>
+      </div>
     </div>
 
     <div class="building-list-section">
@@ -790,11 +789,23 @@ function drawStreetGrid() {
   ctx.lineWidth = 0.5;
 }
 
+function esColor(score) {
+  if (score == null) return '#ef4444';
+  if (score <= 15) return '#ef4444';
+  if (score <= 35) return '#f59e0b';
+  return '#fbbf24';
+}
+function esGlow(score) {
+  if (score == null) return 'rgba(239,68,68,.35)';
+  if (score <= 15) return 'rgba(239,68,68,.4)';
+  if (score <= 35) return 'rgba(245,158,11,.35)';
+  return 'rgba(251,191,36,.3)';
+}
+
 function drawBuilding(bld) {
   const ix = bld.isoX;
   const iy = bld.isoY;
-  const grade = bld.energy_grade;
-  const color = GRADE_COLORS[grade] || '#4a5f85';
+  const color = esColor(bld.energy_star_score);
   const isHovered = hoveredBuilding === bld;
   const isSelected = selectedBuilding === bld;
 
@@ -821,7 +832,7 @@ function drawBuilding(bld) {
   // Glow for hovered
   if (isHovered || isSelected) {
     ctx.save();
-    ctx.shadowColor = GRADE_GLOW[grade] || 'rgba(56,189,248,.3)';
+    ctx.shadowColor = esGlow(bld.energy_star_score);
     ctx.shadowBlur = 12;
     ctx.fillStyle = color;
     ctx.beginPath();
@@ -1053,18 +1064,23 @@ function updateSidebar() {
   const d = FILTERED;
   const n = d.length;
 
-  // Grade bars
-  const maxGrade = Math.max(...GRADES.map(g => d.filter(r => r.energy_grade === g).length), 1);
-  document.getElementById('gradeBars').innerHTML = GRADES.map(g => {
-    const count = d.filter(r => r.energy_grade === g).length;
-    const pct = n ? ((count / n) * 100).toFixed(1) : '0';
-    const barPct = (count / maxGrade * 100).toFixed(1);
-    return `<div class="grade-bar-row">
-      <span class="grade-bar-label" style="color:${GRADE_COLORS[g]}">${g}</span>
-      <div class="grade-bar-track"><div class="grade-bar-fill" style="width:${barPct}%;background:${GRADE_COLORS[g]}"></div></div>
-      <span class="grade-bar-count">${count} (${pct}%)</span>
-    </div>`;
-  }).join('');
+  // Metrics
+  document.getElementById('metricTotal').textContent = n;
+
+  // Scope bars (whole-building vs interiors)
+  const wholeCount = d.filter(r => r._is_whole_building).length;
+  const interiorsCount = n - wholeCount;
+  const maxScope = Math.max(wholeCount, interiorsCount, 1);
+  document.getElementById('scopeBars').innerHTML = [
+    { label: 'Whole Bldg', count: wholeCount, color: '#ef4444' },
+    { label: 'Interiors', count: interiorsCount, color: '#4a5f85' },
+  ].map(s => `<div class="grade-bar-row">
+    <span class="grade-bar-label" style="color:${s.color};font-size:.6rem;width:auto">${s.label}</span>
+    <div class="grade-bar-track"><div class="grade-bar-fill" style="width:${(s.count/maxScope*100).toFixed(1)}%;background:${s.color}"></div></div>
+    <span class="grade-bar-count">${s.count}</span>
+  </div>`).join('');
+  document.getElementById('metricWhole').textContent = `${wholeCount} (${n ? ((wholeCount/n)*100).toFixed(0) : 0}%)`;
+  document.getElementById('metricInteriors').textContent = `${interiorsCount} (${n ? ((interiorsCount/n)*100).toFixed(0) : 0}%)`;
 
   // LEED bars
   const maxLeed = Math.max(...LEED_ORDER.map(l => d.filter(r => r.leed_level === l).length), 1);
@@ -1078,22 +1094,17 @@ function updateSidebar() {
     </div>`;
   }).join('');
 
-  // Metrics
   const esScores = d.map(r => r.energy_star_score).filter(v => v != null);
   const euis = d.map(r => r.site_eui).filter(v => v != null);
-  const whole = d.filter(r => r._is_whole_building).length;
-  const cd = d.filter(r => r.energy_grade === 'C' || r.energy_grade === 'D').length;
 
   document.getElementById('metricES').textContent = esScores.length ? (esScores.reduce((a,b)=>a+b,0)/esScores.length).toFixed(0) : '—';
-  const sorted = [...esScores].sort((a,b)=>a-b);
-  document.getElementById('metricESMed').textContent = sorted.length ? sorted[Math.floor(sorted.length/2)] : '—';
+  const sortedES = [...esScores].sort((a,b)=>a-b);
+  document.getElementById('metricESMed').textContent = sortedES.length ? sortedES[Math.floor(sortedES.length/2)] : '—';
   document.getElementById('metricEUI').textContent = euis.length ? (euis.reduce((a,b)=>a+b,0)/euis.length).toFixed(1) + ' kBtu' : '—';
-  document.getElementById('metricWhole').textContent = n ? ((whole/n)*100).toFixed(0) + '%' : '—';
-  document.getElementById('metricCD').textContent = n ? ((cd/n)*100).toFixed(1) + '%' : '—';
 
   // Building list
   const listHTML = d.slice(0, 200).map((bld, i) => {
-    const gc = GRADE_COLORS[bld.energy_grade] || '#4a5f85';
+    const gc = esColor(bld.energy_star_score);
     const es = bld.energy_star_score != null ? bld.energy_star_score : '—';
     return `<div class="building-item" data-idx="${i}">
       <div class="grade-dot" style="background:${gc}"></div>
@@ -1131,13 +1142,11 @@ function updateSidebar() {
 // FILTERING
 // ============================================================
 function applyFilters() {
-  const grade = document.getElementById('filterGrade').value;
   const leed = document.getElementById('filterLeed').value;
   const type = document.getElementById('filterType').value;
   const search = document.getElementById('filterSearch').value.toLowerCase().trim();
 
   FILTERED = RAW_DATA.filter(r => {
-    if (grade && r.energy_grade !== grade) return false;
     if (leed && r.leed_level !== leed) return false;
     if (type && r.project_type !== type) return false;
     if (search) {
